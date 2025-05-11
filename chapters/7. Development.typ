@@ -1,4 +1,4 @@
-#import "thesis-base.typ": *
+#import "../thesis-base.typ": *
 #import "@preview/codly:1.3.0": *
 #import "@preview/codly-languages:0.1.1": *
 #import "@preview/curryst:0.5.1": rule, prooftree

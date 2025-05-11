@@ -1,0 +1,27 @@
+{
+    "too-long-line-limit.disabledIn": [
+        "typsttypst-code",
+        "typst",
+        "typ",
+        "compose",
+        "blade",
+        "svelte",
+        "cmake",
+        "dockerfile",
+        "dotenv",
+        "editorconfig",
+        "gitignore",
+        "html",
+        "ini",
+        "json",
+        "jsonc",
+        "log",
+        "makefile",
+        "markdown",
+        "plaintext",
+        "properties",
+        "yaml",
+        "toml",
+        "svg"
+    ]
+}

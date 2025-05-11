@@ -1,4 +1,4 @@
-#import "thesis-base.typ": itmo-bachelor-thesis, structural-element, chapter, term
+#import "../thesis-base.typ": itmo-bachelor-thesis, structural-element, chapter, term
 #import "@preview/codly:1.3.0": *
 #import "@preview/codly-languages:0.1.1": *
 

@@ -1,4 +1,4 @@
-#import "thesis-base.typ": itmo-bachelor-thesis, structural-element, chapter, term
+#import "../thesis-base.typ": itmo-bachelor-thesis, structural-element, chapter, term
 
 #chapter(1, "Обзор существующих подходов")
 
