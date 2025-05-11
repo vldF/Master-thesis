@@ -23,5 +23,9 @@
         "yaml",
         "toml",
         "svg"
+    ],
+    "cSpell.language": "en,ru",
+    "cSpell.words": [
+        "подтипирования"
     ]
 }
