@@ -30,7 +30,7 @@
 
 Для апробации код на DSL транслируется в низкоуровневый код для расширений, анализатор PT JSA запускается из терминала. Он пишет в журнал запись о каждой найденной уязвимости. Для краткости, пояснительная информация содержит только основные значения из срабатываний анализатора.
 
-== Библиотека для HTTP запросов
+== Библиотека для отправки HTTP запросов
 
 Одной из популярных операций в бэкэнд приложениях является отправка HTTP запросов. Она необходима как для интеграции со внешними сервисами, так и для коммуникациями между микросервисами одной системы. 
 
@@ -51,7 +51,7 @@ def save_profile_image():
 
 def download_image(url, filename):
     token = get_system_token()
-    # Server-Side Request Forgery
+    # уязвимость: подделка запросов со стороны сервера
     response = urllib3.request('GET', url, { 'auth_token': token }) 
 
     with open(filename, 'wb') as f:
@@ -174,7 +174,7 @@ import "urllib3.response";
   table(
   columns: 2*(auto,),
   table.header("Параметр", "Значение"),
-  "Тип", "Server-Side Request Forgery",
+  "Тип", "Подделка запросов со стороны сервера",
   "Уязвимое выражение", "response = urllib3.request('GET', url, { '...",
   "Точка входа", "def download_image(url, filename):",
   "Трасса данных", [
@@ -187,5 +187,488 @@ import "urllib3.response";
 
 Этот пример показывает, что разработанный DSL позволяет расширять базу знаний PT JSA элементарными библиотеками и позволяет описывать их с точки зрения анализа потока данных с достаточной для анализа точностью.
 
-== 
+== Библиотека для работы с базой данных
 
+В Python существует несколько популярных библиотек для работы с базами данных. В рамках демонстрации была выбрана библиотека psycopg2, предоставляющая набор всех базовых операций для взаимодействия с СУБД postgres.
+
+Листинг @psycopg2-app содержит фрагмент бэкэнд приложения, построенного на фреймворке Flask и использующий библиотеку psycopg2. 
+
+#figure(
+  caption: "Фразмент бэкэнд приложения с использованием psycopg2",
+```python
+@app.route("users/description/<user_id>/", methods=["GET"])
+def get_user_description():
+  user_id = request.args.get('user_id')
+  conn = connect("dbname=test user=postgres")
+  cur = conn.cursor()
+  # уязвимость: внедрение SQL-кода
+  cur.execute("SELECT description FROM table WHERE ID = " + user_id)
+  description = cur.fetchone()
+  # уязвимость второго порядка: межсайтовый скриптинг
+  return description
+
+@app.route("users/<user_id>/", methods=["GET"])
+def get_user1():
+  user_id = request.args.get('user_id')
+  conn = connect("dbname=test user=postgres")
+  cur = conn.cursor()
+  # уязвимость: внедрение SQL-кода
+  cur.execute("SELECT * FROM table WHERE ID = " + user_id)
+  user = cur.fetchone()
+  # нет уязвимости
+  return jsonify(user)
+
+@app.route("users/<user_id>/", methods=["GET"])
+def get_user2():
+  user_id = request.args.get('user_id')
+  conn = connect("dbname=test user=postgres")
+  cur = conn.cursor()
+  # нет уязвимости
+  cur.execute("SELECT * FROM table WHERE ID = %s", (user_id, ))
+  user = cur.fetchone()
+  # нет уязвимости
+  return jsonify(user)
+```
+) <psycopg2-app>
+
+Для демонстрации использования библиотеки psycopg2 используется функция _connect_, устанавливающая подключение к БД и возвращает объект типа _Connection_. Он содержит функцию _cursor_, которая возвращает объект типа _Cursor_, позволяющий обращаться к базе данных. Его функции _execute_ и _executemany_ позволяют отправить запрос, функции _fetchone_, _fetchmany_ и _fetchall_ возвращают результат запроса.
+
+ В Листинге @psycopg2-app _get_user_description_ содержит сразу две уязвимости: внедрение SQL-кода и уязвимость второго порядка типа межсайтовый скриптинг. Уязвимостью второго порядка называется уязвимость, уязвимые данные для которой сначала сохраняются в некоторое состояние (в оперативную память, в базу данных), а затем возвращаются пользователю в результате другого запроса. В данном примере атакующий мог бы установить описание пользователя на HTML текст с скриптом на javascript. Получение этого описания другим пользователем привело бы к уязвимости. В этой функции одним из способов исправления уязвимости может быть экранирование данных, что демонстрируется в функции _get_user1_. В прочем, в _get_user1_ всё ещё присутствует уязвимость типа "внедрение SQL-кода". Её исправление приведено в функции _get_user2_, где используется механизм библиотеки psycopg2, экранирующий значения при формировании SQL pапроса по шаблону на строке 29. 
+
+ Для расширения базы знаний PT JSA был написан код на DSL, приведённый в Листинге @psycopg2-descr. В нём приведены три файла. Файл _psycopg2.jsadsl_ содержит функцию _connect_, которая возвращает объект типа _Connection_ вне зависимости от строки подключения к БД. Объект _Connection_ содержит функцию _cursor_, возвращающую объект типа _Cursor_, который содержит функции для исполнения запросов и возврата результатов. Таким образом моделируется общая структура библиотеки. Функции _execute_ и _executemany_ содержат код, запускающий поиск уязвимых данных на их аргументах. Это позволяет определять случаи конкатенации к SQL запросам потенциально уязвимых данных. Функции _fetchone_, _fetchmany_ и _fetchall_ возвращают данные соответствующего типа с taint-меткой и источником вида "Second Order", обозначающих, что это данные, которые могут привести к уязвимости второго порядка. 
+
+#figure(
+caption: "Код для добавления поддержки psycopg2 в PT JSA",
+```DSL
+// файл psycopg2.jsadsl
+package "psycopg2";
+import "psycopg2.Cursor";
+import "psycopg2.Connection";
+
+func connect(connection_string: any): Connection {
+    return new Connection();
+}
+
+// файл psycopg2.Connection.jsadsl
+package "psycopg2.Connection";
+
+import "Standard";
+import "psycopg2.Cursor";
+
+object Connection {
+    func cursor(): Cursor {
+        return new Cursor();
+    }
+}
+
+// файл psycopg2.Cursor.jsadsl
+package "psycopg2.Cursor";
+import "Standard";
+
+object Cursor {
+    func execute(
+      query: string, 
+      vars: list = CreateDataOfType<list>()
+    ) {
+        Detect(query, "SQL Injection", "SQL common");
+    }
+
+    func executemany(
+      query: string, 
+      vars: list = CreateDataOfType<list>()
+    ) {
+        Detect(query, "SQL Injection", "SQL common");
+    }
+
+    func fetchone(): any {
+        return CreateTaintedDataOfType<any>(
+          "Second Order");
+    }
+
+    func fetchmany(): list {
+        return CreateTaintedDataOfType<list>(
+          "Second Order");
+    }
+
+    func fetchall(): list {
+        return CreateTaintedDataOfType<list>(
+          "Second Order");
+    }
+}
+```
+) <psycopg2-descr>
+
+Уязвимости, которые были найдены анализатором PT JSA в коде, приведённом в Листинге @psycopg2-app с помощью расширения в Листинге @psycopg2-descr, приведены в Таблице @psycopg2-res. Из неё следует, что все уязвимости в коде, описанные ранее, были обнаружены и были обнаружены только они.
+
+#figure(
+  caption: "Информация об уязвимостях",
+  table(
+  columns: 2*(auto,),
+  table.header("Параметр", "Значение"),
+  table.cell([Функция _get_user_description_], colspan: 2),
+  table.cell([Уязвимость "внедрение SQL-кода"], colspan: 2),
+  "Уязвимое выражение", "cur.execute(\"SELECT description FROM table...",
+  "Точка входа", "@app.route(\"users/description/<user_id>/\",:",
+  "Трасса данных", [
+    user_id = request.args.get('user_id') #linebreak()
+    cur.execute(\"SELECT description FROM table...
+  ],
+  table.cell([Уязвимость "межсайтовый скриптинг"], colspan: 2),
+  "Уязвимое выражение", "return description",
+  "Точка входа", "@app.route(\"users/description/<user_id>/\", ...",
+  "Трасса данных", [
+    description = cur.fetchone() #linebreak()
+    return description
+  ],
+  table.cell([Функция _get_user1_], colspan: 2),
+  table.cell([Уязвимость "внедрение SQL-кода"], colspan: 2),
+  "Уязвимое выражение", "cur.execute(\"SELECT * FROM table...",
+  "Точка входа", "@app.route(\"users/<user_id>/\", ...",
+  "Трасса данных", [
+    user_id = request.args.get('user_id') #linebreak()
+    cur.execute(\"SELECT \* FROM table...
+  ],
+)
+) <psycopg2-res>
+
+Таким образом, разработанный DSL пригоден для добавления в PT JSA поддержки библиотек для работы с базами данных. 
+
+== Фреймворк для обработки HTTP запросов
+
+Для Python предоставлено большое число фреймворков, позволяющих разрабатывать серверные приложения, обрабатывающие HTTP запросы от клиентов. Одним из популярных является фреймворк Flask. Он позволяет с использованием декоратора _\@route_ объявить функцию обработчиком запроса. Эта функция может содержать аргументы, которые могут быть получены и альтернативным способом — при помощи поля _request.args_, которое является ассоциативным массивом. Flask также предоставляет большое число утилитарных функций, таких как _fsonify_, которая преобразует аргумент произвольного типа в JSON. Она позволяет экранировать данные полей сериализуемого объекта, по этому, можно рассматривать её как фильтрующую функцию.
+
+В Листинге @flask-app приведён код HTTP сервера с использованием этого фреймворка. Он состоит из двух обработчиков запроса: функции _auth_, имитирующей идентификацию и аутентификацию по логину и хешу пароля, а также функции _get_current_user_, возвращающей информацию о текущем пользователе. В Листинге представлены и вспомогательные функции: _validate_login_and_password_, проверяющая корректность логина и хеша пароля записи в БД, а также _get_user_by_token_, получающая из БД запись о пользователе по его токену аутентификации. 
+
+#figure(
+caption: "Фрагмент кода web-приложения на Flask",
+```python
+app = Flask(__name__)
+
+@app.route("/auth/<string:redirect_url>")
+def auth(redirect_url: str):
+  login = request.args["user_login"]
+  pass_hash = request.args["user_login"]
+  if not validate_login_and_password(login, pass_hash):
+    return "Login failed", 401
+
+  token = get_user_token(login)
+  # уязвимость: подделка запросов со стороны сервера
+  return redirect(f"redirect_url?token={token}")
+
+def validate_login_and_password(login: str, pass_hash: str) -> bool:
+  conn = connect("dbname=test user=postgres")
+  cur = conn.cursor()
+  cur.execute("SELECT * FROM users WHERE login = %s", (login, ))
+  user = cur.fetchone()
+  return user is not None and user.pass_hash == pass_hash
+
+@app.route("/user/get_me/<string:token>")
+def get_current_user(token: str):
+  current_user = get_user_by_token(token)
+  if current_user is None:
+    return f"invalid token: {token}"
+
+  return jsonify(current_user)
+
+def get_user_by_token(token: str):
+  conn = connect("dbname=test user=postgres")
+  cur = conn.cursor()
+
+  cur.execute("SELECT * FROM user_tokens WHERE token = %s", (token, ))
+  token_record = cur.fetchone()
+  if token_record is None:
+    return None
+
+  cur.execute("SELECT * FROM users WHERE login = %s", (token_record.login, ))
+  user = cur.fetchone()
+
+  return user
+```
+) <flask-app>
+
+Функция-обработчик _auth_ в Листинге @flask-app получает от клиента логин, хеш пароля, а также адрес, на который пользователь будет перенаправлен в случае успешной аутентификации. Стоит заметить, что в коде полностью отсутствует проверка адреса для перенаправления. Так как он принимается в запросе от пользователя, атакующий может проставить туда произвольный адрес, на который при удачной аутентификации отправится токен пользователя с помощью параметра _token_. Таким образом, это пример уязвимости типа "подделка запросов со стороны сервера". 
+
+Функция _get_current_user_ получает запись о пользователе по его токену. В случае, если она не может найти его, возвращается ошибка, которая содержит сам токен. Так как токен передаётся клиентом, атакующий может передать намеренно данные, не проходящие проверку и содержащие произвольный код. Так как этот код возвращается достоверным сервером, то у него будет доступ к механизмам браузера, которые используются для хранения настоящего токена. Так, эта информация может быть передана на внешний сервер и злоумышленник получит к ней доступ. Для исправления этой уязвимости можно воспользоваться функцией _escape_, которую предоставляет Flask. Она экранирует HTML теги, что лишает злоумышленника возможность провести такую атаку. Также, можно просто не возвращать некорректный токен. 
+
+Flask — сложный для поддержки фреймворк. Текущих возможностей DSL не хватает для этого. К примеру, во Flask применяются декораторы, которые, с точки зрения семантики python, являются синтаксическим сахаром для композиции функций. Таким образом, для описания декораторов необходима поддержка функциональных значений и типов, которая отсутствует в прототипе. Однако, так как предоставляются возможности для написания части кода расширения с использованием низкоуровнего API на C\# Script, эти ограничения можно обойти, что и было сделано для апробации. Так, расширение состоит из двух файлов. Файл _flask.jsadsl_ (см. Листинг @flask-descr), содержащего, помимо прочего, объект _Flask_, помеченный аннотацией _\@GeneratedName(''FlaskClassDescriptor'')_. Таком образом, объект _Flask_ может быть расширен из низкоуровневого API на C\# Script. Файл _flaskComplemention.jsa_ содержит такой код, с ним можно ознакомиться по ссылке [TODO]. 
+
+#figure(
+  caption: "Фрагмент кода расширения для поддержки Flask",
+```DSL
+import "Standard";
+
+@GeneratedName("FlaskClassDescriptor")
+object Flask { }
+
+func url_for(endpoint: any): string {
+    return CreateDataOfType<string>();
+}
+
+object Request {
+    var args = CreateTaintedDataOfType<dict>("Query");
+    var data = CreateTaintedDataOfType<dict>("Body");
+    // ...
+    var blueprint = CreateDataOfType<string>();
+    var endpoint = CreateDataOfType<any>();
+
+    func get_json(): any {
+        return CreateTaintedDataOfType<any>("Body");
+    }
+}
+
+var request = new Request();
+
+func escape(data: string): string {
+    var escaped = WithoutVulnerability(data, "Cross-site Scripting");
+    escaped = WithoutVulnerability(data, "Server-Side Template Injection");
+}
+
+func jsonify(data: any): any {
+    return CreateDataOfType<any>();
+}
+
+func redirect(url: string, code: int = 302, response: any = none): any {
+    Detect(url, "Server-Side Request Forgery", "HTTP URI");
+    Detect(response, "Cross-site Scripting", "HTTP URI");
+
+    return CreateDataOfType<any>();
+}
+```
+) <flask-descr>
+
+Листинг @flask-descr содержит фрагмент файла расширения. Помимо объекта _Flask_, в нём расположен объект _Request_, содержащий большое количество полей-источников taint-данных (их часть скрыта для краткости). Представлены и поля с данынми без метки (_blueprint_ и _endpoint_). Обратим внимание на функцию _get_data_. В зависимости от значения аргумента _as_text_, она возвращает либо строку байт, либо обычную строку с теинт метками. Функция _escape_, располагающаяся на глобальном уровне, сообщает анализатору об отфильтровывании данных таким образом, что уязвимость типа "Cross-site Scripting" (межсайтовый скриптинг) больше не может быть обнаружена на соответствующем потоке данных. Функция _jsonify_ возвращает данные произвольного типа без taint-метки, моделируя преобразование данных в JSON с экранированием. Функция _redirect_ запускает обнаружение уязвимостей типа "Server-Side Request Forgery" (подделка запросов со стороны сервера) на адресе перенаправления и "Cross-site Scripting" на аргументе ответа от сервера.
+
+Таблица @flask-res содержит уязвимости, обрануженные анализатором PT JSA на коде из Листинга @flask-app с разработанным расширением. 
+
+#figure(
+  caption: "Информация об уязвимостях",
+  table(
+  columns: 2*(auto,),
+  table.header("Параметр", "Значение"),
+  table.cell([Функция _auth_], colspan: 2),
+  table.cell([Уязвимость "подделка запросов со стороны сервера"], colspan: 2),
+  "Уязвимое выражение", "return redirect(f\"{redirect_url}?token={token}\")",
+  "Точка входа", "@app.route(\"/auth/<string:redirect_url>\")",
+  "Трасса данных", [
+    \@app.route(\"/auth/\<string:redirect_url>\") #linebreak()
+    login = request.args[\"user_login\"]" #linebreak()
+    token = get_user_token(login) #linebreak()
+    return redirect(f\"{redirect_url}?token={token}\")"
+  ],
+  table.cell([Функция _get_current_user_], colspan: 2),
+  table.cell([Уязвимость "межсайтовый скриптинг"], colspan: 2),
+  "Уязвимое выражение", "return f\"invalid token: {token}\"",
+  "Точка входа", "@app.route(\"/user/get_me/<string:token>\")",
+  "Трасса данных", [
+    \@app.route(\"/user/get_me/\<string:token>\") #linebreak()
+    return f\"invalid token: {token}\"
+  ],
+)
+) <flask-res>
+
+В Таблице @flask-res видно, что все описанные ранее уязвимости были найдены, а все представленные значения являются корректными. Таким образом, несмотря на ограничения текущей реализации прототипа, благодаря совместимости с C\# Script можно описывать и такие сложные фреймворки как Flask.
+
+== Пользовательская библиотека для получения информации об IP
+
+Рассмотренные ранее библиотеки могли бы оказаться в базе знаний PT JSA благодаря его производителю, так как они являются популярными. Однако, существует большое количество компонентов, которые не могут быть добавлены вендором. Например, некоторые из компаний-пользователей PT JSA имеют собственные разработки библиотек. Одной из таких библиотек может являться библиотека для определения информации об IP адресе. Это необходимо, в частности, для отображения данных об активности пользователя. Эта функциональная возможность предоставляется большим количеством сервисов и позволяет обнаруживать подозрительную активность на своём аккаунте. Для демонстрации была разработана библиотека, испоьзующая API сервиса ipgeolocation.abstractapi.com. Исходный код клиентов может быть обнаружен в [TODO]. Код приложения для демонстрации приведён в Листинге @ip-app. Функция 
+_get_user_session_vulner_ содержит уязвимость "межсайтовый скриптинг". В функции _get_user_session_safe_ происходит экранирование ответа от удалённого сервера. Стоит отметить, что удалённый сервер возвращает единственную строку без HTML-разметки, по этому, экранирование функцией _escape_ тут возможно. 
+
+
+#figure(
+caption: "Код приложения, использующий библиотеку",
+```python
+ip_client = IpGeolocationClient(base_url="https://ipgeolocation.abstractapi.com/", token="api-token")
+def get_ip_info(ip: str) -> str:
+  return ip_client.get_info(ip)
+
+@app.route('/vulnerable/ip_info/<int:user_ip>', methods=['GET'])
+def get_user_session_vulner(user_ip):
+  ip_info = get_ip_info(user_ip)
+  escaped_ip = escape(user_ip)
+  # уязвимость: межсайтовый скриптинг
+  return f"""
+  <html>
+  <b>IP: {escaped_ip}</b>
+  </br>
+  <b>IP geolocation: {ip_info}</b>
+  </html>
+  """
+
+@app.route('/safe/ip_info/<int:user_ip>', methods=['GET'])
+def get_user_session_safe(user_ip):
+  ip_info = get_ip_info(user_ip)
+  escaped_ip_info = escape(ip_info)
+  escaped_ip = escape(user_ip)
+  # уязвимость отсутствует
+  return f"""
+  <html>
+  <b>IP: {escaped_ip}</b>
+  </br>
+  <b>IP geolocation: {escaped_ip_info}</b>
+  </html>
+  """
+```
+) <ip-app>
+
+Для добавления поддержки разработанной библиотеки в PT JSA был написан код, приведённый в Листинге @ip-descr. Он содержит единственный объект _IpGeolocationClient_, содержащий функции _\_\_init\_\__ метод (выполняющий роль конструктора) и _get_ip_info_. Последняя принимает IP в виде строки и возвращает строку с taint-меткой и происхождением типа _Body_. Они соответствуют ответу от HTTP сервиса, который используется в качестве поставщика информации. Функция _get_ip_info_ в данном примере возвращает недостоверные данные больше для демонстрационных целей. В прочем, некоторые требования к обеспечению безопасности приложений дествительно могут быть установлены так, что такое поведение будет само собой разумеющимся. В самом деле, данные передаются на внешний сервер, находящийся вне зоны контроля. Атакующий может получить к нему доступ и отправить из него недостоверные данные для эксплуатации уязвимости, по этому, данные нужно валидировать. 
+
+#figure(
+caption: "Код расширения для поддержки библиотеки",
+```DSL 
+import "Standard";
+
+object IpGeolocationClient {
+    func __init__(base_url: string, token: string) {}
+
+    func get_ip_info(ip: string): string {
+        return CreateTaintedDataOfType<string>("Body");
+    }
+}
+```
+) <ip-descr>
+
+В Таблице @ip-res приведена информация об уязвимостях, обнаруженных в коде @ip-app при помощи разработанного расширения базы знаний анализатора. Видно, что анализатор нашёл единственную уязвимость, описанную выше, а также что представленные свойства этой уязвимости корректны.
+
+#figure(
+  caption: "Информация об уязвимостях",
+  table(
+  columns: 2*(auto,),
+  table.header("Параметр", "Значение"),
+  table.cell([Функция _get_user_session_vulner_], colspan: 2),
+  table.cell([Уязвимость "межсайтовый скриптинг"], colspan: 2),
+  "Уязвимое выражение", "<b>IP info: {ip_info}</b>",
+  "Точка входа", "@app.route('/vulnerable/ip_info/<int:user_ip>'...",
+  "Трасса данных", [
+    \@app.route('/vulnerable/ip_info/\<int:user_ip>'... #linebreak()
+    ip_info = get_ip_info(user_ip)... #linebreak()
+    \<b>IP info: {ip_info}\</b>... #linebreak()
+    return f\"\"\"
+  ],
+)
+) <ip-res>
+
+Таким образом, разработанный DSL позволяет описывать простые пользовательские библиотеки, которые не могут быть внесены в базу знаний анализатора при его разработке, что делает инструмент актуальным для большого количества пользователей.
+
+== Автоматически сгенерированная пользовательская библиотека
+
+Такие инструменты как protobuf и openAPI позволяют генерировать клиенты и сервера на основани спецификации. Это часто используется, к примеру, в подходе разработки на основе контракта (contract-first development). Она популярна при разработке web-приложений с микросервисной архитектурой, так как позволяет разрабатывать каждый из сервисов параллельно. В микросервисной архитектуре каждый из компонентов системы исполняет различные функции. Можно представить, что в некотором приложении база данных о пользователях реализована в виде выделенного сервиса. У него есть заранее известный контракт на языке protobuf, который позволяет автоматически сгенерировать код клиента для gRPC [todo: ссылки на gRPC и proto]. Код клиента, сгенерированный gRPC затруднителен для автоматического анализа, так как, в частности, содержит сложную сериализацию в памяти с последующей отправкой сообщения серверу. Ответы проходят другую сложную процедуру — десериализацию. По этому, есть необходимость в добавлении поддержки этого клиента в базу знаний анализатора.
+
+Код контрактов сервиса базы данных о пользователе приведён в Листинге @grpc-contract. Он включает в себя сервис _UserStore_, а также два сообщения — запрос данных о пользователе _UserRequest_ и ответ на него _User_. 
+
+#figure(
+caption: "Контракты базы данных о пользователе",
+```protobuf
+syntax = "proto3";
+package userstorage;
+
+message User {
+  string id = 1;
+  string username = 2;
+}
+
+message UserRequest {
+  string id = 1;
+}
+
+service UserStore {
+  rpc GetUser(UserRequest) returns (User);
+}
+
+```
+) <grpc-contract>
+
+В Листинге @grpc-app приведён код приложения, использующего этот сервис. Обработчике запросов _vulnerable_get_user_info_ содержится уязвимость "небезовасная прямая ссылка на объект", позволяющая атакующему получить перебором все значения из БД, если он может явно передать идентификатор каждого из них. К примеру, он может получить список всех идентификаторов пользователей другим запросом, а затем для каждого из них получить всю возможную информацию через _vulnerable_get_user_info_. Для исправления уязвимости стоит запретить явную передачу идентификатора через аргументы запроса и получать его, к примеру, из токена текущего пользователя. Этот подход демонстрируется в _safe_get_user_info_. Функция _\_get_user_id_ получает ИД текущего пользователя на основании токена из запроса, её реализация опущена. 
+
+Обе функции используют канал (_channel_) для коммуникации с сервисом. Эту абстракцию предоставляет gRPC в своей библиотеке. Далее, они получают экземпляр "заглушки" (_stub_) для сервиса UserStore, который содержит функцию _GetUser_. Она принимает объект запроса и возвращает результат, который, затем, возвращается пользователю.
+
+#figure(
+caption: "Код приложения, использующий сервис UserStore",
+```DSL
+@app.route("/vulner/getCurrentUserInfo/<string:user_id>")
+def vulnerable_get_user_info(user_id: str):
+  with grpc.insecure_channel(SERVER_URL) as channel:
+    user_storage_stub = user_storage_service.UserStoreStub(channel)
+    getUserRequest = user_storage_dto.UserRequest(user_id)
+
+    # уязвимость: небезовасная прямая ссылка на объект
+    user = user_storage_stub.GetUser(getUserRequest)
+
+    return jsonify(user)
+
+@app.route("/safe/getUserInfo/")
+def safe_get_user_info():
+  current_user_id = _get_user_id()
+  with grpc.insecure_channel(SERVER_URL) as channel:
+    user_storage_stub = user_storage_service.UserStoreStub(channel)
+    # нет уязвимости
+    user = user_storage_stub.GetUser(user_storage_dto.UserRequest(current_user_id))
+
+    return jsonify(user)
+```
+)<grpc-app>
+
+Инструмент для генерации кода gRPC клиента для Python генерирует раздельные файлы для моделей сообщений и кода сервисов. Каждый из них располагается в собственном пакете. По этому, это необходимо повторить и в коде расширения, см. Листинг @grpc-desc. Объект _UserRequest_ содержит поле _id_ и конструктор для его инициализации. Объект _User_ не содержит конструктора, так как он не нужен для моделирования кода. Объект _UserStoreStub_ содержит конструктор, принимающий аргумент _channel_ так как он используется для инициализации из кода приложения. Функция _GetUser_ запускает определение уязвимости типа "небезовасная прямая ссылка на объект" (Insecure Direct Object References). 
+
+#figure(
+caption: "Расширение для поддержки UserStore",
+```DSL
+// файл userstorage.services_pb2.jsadsl
+package "userstorage.services_pb2";
+
+object UserRequest {
+  var id: string;
+  func __init__(id: string) {
+    self.id = id;
+  }
+}
+
+object User {
+  var id: int;
+  var username: string;
+}
+
+
+// файл userstorage.services_pb2_grpc.jsadsl
+import "Standard";
+import "userstorage.services_pb2";
+
+object UserStoreStub {
+  func __init__(channel: any) { }
+
+  func GetUser(request: UserRequest): User {
+    Detect(
+      request.id, 
+      "Insecure Direct Object References", 
+      "Arbitrary string data");
+    return CreateDataOfType<User>();
+  }
+}
+```
+) <grpc-desc>
+
+В Таблице <grpc-res> приведён результат анализа кода из Листинга @grpc-app с разработанным расширением.
+
+#figure(
+  caption: "Информация об уязвимости",
+  table(
+  columns: 2*(auto,),
+  table.header("Параметр", "Значение"),
+  table.cell([Функция _vulnerable_get_user_info_], colspan: 2),
+  table.cell([Уязвимость "небезовасная прямая ссылка на объект"], colspan: 2),
+  "Уязвимое выражение", "user = user_storage_stub.GetUser(getUserRequest)",
+  "Точка входа", "@app.route(\"/vulnerable/getCurrentUserInfo/...",
+  "Трасса данных", [
+    \@app.route(\"/vulnerable/getCurrentUserInfo/ #linebreak()
+    getUserRequest = user_storage_dto.UserRequest(...) #linebreak()
+     user = user_storage_stub.GetUser(getUserRequest)
+  ]
+)
+) <grpc-res>
+
+По Таблице <grpc-res> видно, что описанная выше уязвимость была обнаружена и её свойства корректны. Это показывает, что разработанный DSL может быть использован для добавления поддержки автоматически генерируемых библиотек, а также показывает, как пользователь анализатора может учесть архитектуру конкретного проекта для уточнения результатов анализа. 
+
+== Резюме 
+
+В данной главе демонстрируются возможности разработанного DSL на примере пяти проектов. Каждый из них демонстрирует различные аспекты языка: возможность описания источников, стоков и фильтрующих функций, возможность описания поведения кода, сохранение информации в поля объектов, совместное написание расширений на DSL и C\# Script. 
+
+Написанные на разработанном языке расширения получились читаемыми и их было легко писать. Значит, DSL пригоден к использованию программистом. Он предоставляет возможность описания функций и фреймворков с различной степенью детализации поведения и потоков данных. Решение позволяет переиспользовать код засчёт выделения функци и объектов. Оно совместимо с PT JSA, как было показано для различных проектов. Основным аспектом является то, что оно предоставляет абстракции от внутренних особенностей анализатора. Несмотря на то что от пользователя всё ещё требуются компетенции аналитика безопасной разработки приложений, разрабатывать расширения стало существенно проще. Их код получается компактным и читаемым.
