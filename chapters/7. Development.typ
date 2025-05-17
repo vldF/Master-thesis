@@ -460,7 +460,7 @@ object Obj {
   caption: "Пример сигнатуры внутренней функции",
 )[
   ```DSL
-  intrinsic As<TResult>(expression: any): TResult
+  intrinsic func As<TResult>(expression: any): TResult
   ```
 ] <example-as-dsl-sig>
 
@@ -470,7 +470,7 @@ object Obj {
   ```csharp
   SymbolicExpression As(
     Location location, 
-    expression: SymbolicExpression)
+    SymbolicExpression expression)
   {
     return expression;
   }
@@ -508,7 +508,7 @@ intrinsic func WithoutVulnerability<T>(
 intrinsic func GetTaintOrigin(
   expression: any): string
 
-intrinsic As<TResult>(
+intrinsic func As<TResult>(
   expression: any): TResult
 ```
 ] <default-library>
@@ -527,7 +527,7 @@ TExpr WithTaintMark<TExpr>(
   if (expression == null) {
 	  return null;
   }
-  var taintOrigin = new TaintOrigin(origin)
+  var taintOrigin = new TaintOrigin(origin);
   return expression.With(taintOrigin);
 }
 ```
