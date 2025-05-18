@@ -1,16 +1,7 @@
 #import "@preview/codly:1.3.0": *
+#import "@preview/muchpdf:0.1.0": muchpdf
 
-#let itmo-bachelor-thesis(
-  faculty: str,
-  program: str,
-  specialty: str,
-  title: str,
-  author: str,
-  mentor: content,
-  consultant: content,
-  year: int,
-  doc,
-) = {
+#let itmo-bachelor-thesis(title, author, body) = {
   set document(
     title: title,
     author: author,
@@ -64,26 +55,23 @@
 
   set enum(numbering: "1)")
 
+set page(
+    margin: (
+      left: 0mm,
+      right: 0mm,
+      top: 0mm,
+      bottom: 0mm,
+    ),
+    numbering: "1",
+  )
 
-  align(center)[
-    Университет ИТМО \
-    #faculty \
-    \ \
-    #program \
-    #specialty \
-    \ \ \ \ \ \
-    #heading(outlined: false)[#title] \
-    \ \ \ \
-    *Автор*: #author \
-    *Руководитель от университета ИТМО*: \ #mentor \
-    *Руководитель от профильной организации*: \ #consultant \
-    \
-  ]
+  muchpdf(read("./generated/front page.pdf", encoding: none), width: 100%)
 
-  align(center + bottom)[Санкт-Петербург, #year]
+  muchpdf(read("./generated/task.pdf", encoding: none), width: 100%)
 
-  pagebreak()
+  muchpdf(read("./generated/annotation.pdf", encoding: none), width: 100%)
 
+  
 
   set page(
     margin: (
@@ -99,7 +87,7 @@
 
   set heading(numbering: "1.1.1")
 
-  doc
+  body
 }
 
 #let structural-element(name, outlined: true) = {
