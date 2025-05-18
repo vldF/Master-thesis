@@ -1,6 +1,7 @@
 {
     "too-long-line-limit.disabledIn": [
         "typsttypst-code",
+        "bibtex",
         "typst",
         "typ",
         "compose",

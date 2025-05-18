@@ -20,4 +20,5 @@
 #include "chapters/6. Task.typ"
 #include "chapters/7. Development.typ"
 #include "chapters/8. Approbation.typ"
-#include "chapters/9. bibliography.typ"
+#include "chapters/9. Conclusion.typ"
+#include "chapters/10. bibliography.typ"
