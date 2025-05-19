@@ -82,7 +82,7 @@
 
   set enum(numbering: "1)")
 
-set page(
+  set page(
     margin: (
       left: 0mm,
       right: 0mm,
@@ -97,8 +97,6 @@ set page(
   muchpdf(read("./generated/task.pdf", encoding: none), width: 100%)
 
   muchpdf(read("./generated/annotation.pdf", encoding: none), width: 100%)
-
-  
 
   set page(
     margin: (

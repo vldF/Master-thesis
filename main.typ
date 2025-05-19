@@ -6,6 +6,10 @@
   "Феофилактов Владислав Сергеевич",
 )
 
+#import "highlight.typ": *
+#show: enable-highlighting
+
+
 #include "chapters/2. content.typ"
 #include "chapters/4. intro.typ"
 #include "chapters/5. overview.typ"

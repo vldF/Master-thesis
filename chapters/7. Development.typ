@@ -7,17 +7,6 @@
 #show: codly-init.with()
 #codly(languages: codly-languages, breakable: true)
 
-#show figure.where(kind: raw): it => [
-  #show raw.where(lang: "DSL"): it_r => [
-    #show regex("\b(object|func|var|return|if|else|intrinsic|new|true|false|package|import|)\b") : keyword => text(weight: "bold", fill: blue, keyword)
-    #show regex("\".+\"") : keyword => text(fill: rgb("#067D17"), keyword)
-    #show regex("/\*.+\*/") : keyword => text(fill: rgb("#6d6d6d"), keyword)
-    #it_r
-  ]
-
-  #it
-]
-
 #chapter(3, "Разработка и реализация языка и транслятора")
 
 == Описание DSL
@@ -358,7 +347,7 @@ func buildClient(host: string, port: int): HttpClient {
 Присваивание значений осуществляется с помощью оператора _=_. Оно позволяет присваивать значения для полей и переменных. Синтаксические правила приведены на Рисунке @syntax-assignment.
 
 #syntax-rule(
-  "Синтаксические правила присваения значения",
+  "Синтаксические правила оператора присваивания значения",
   "syntax-assignment"
 )[
 ```
@@ -633,7 +622,7 @@ TExpr WithTaintMark<TExpr>(
 
 == Разработка транслятора
 
-Данный раздел содержит описание основных технических решений, которые были приняты при разработке транслятора с разработанного DSL в код расширений базы знаний анализатора кода PT JSA на языке C\# Script. Полный код может быть найден в публичном репозитории #footnote("Исходный код транслятора: https://github.com/vldF/Master-thesis-DSL")
+Данный раздел содержит описание основных технических решений, которые были приняты при разработке транслятора с разработанного DSL в код расширений базы знаний анализатора кода PT JSA на языке C\# Script. Полный код может быть найден в публичном репозитории #footnote("Исходный код транслятора: ")
 
 === Архитектура транслятора
 
