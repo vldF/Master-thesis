@@ -644,6 +644,8 @@ TExpr WithTaintMark<TExpr>(
 
 #figure(
   caption: "Логическая архитектурная схема",
+  kind: "image",
+  supplement: "Рисунок",
   image("../diagrams/jsa dsl architecture.svg", width: 90%),
 ) <architecture>
 

@@ -1,6 +1,10 @@
 #import "@preview/codly:1.3.0": *
 #import "@preview/muchpdf:0.1.0": muchpdf
 
+#let chapter_counter = counter("chapter-counter")
+#let table_counter = counter("table-counter")
+#table_counter.update(1)
+
 #let itmo-bachelor-thesis(title, author, body) = {
   set document(
     title: title,
@@ -31,18 +35,41 @@
     block(inset: (left: 1.25cm), it)
   }
 
+  show heading.where(depth: 1): it => {
+    counter(figure.where(kind: raw)).update(0)
+    counter(figure.where(kind: "image")).update(0)
+    counter(figure.where(kind: image)).update(0)
+    it
+  }
+
   show link: underline
 
   set figure.caption(separator: [ --- ])
   set ref(supplement: none)
 
-  show figure.where(kind: image): set figure(supplement: "Рисунок")
+  show figure.where(kind: image): set figure(
+    supplement: "Рисунок",
+    )
 
   show figure.where(kind: table): set figure(supplement: "Таблица")
   show figure.where(kind: table): set figure.caption(position: top)
   show figure.caption.where(kind: table): it => [
     #align(left)[#it]
   ]
+  show figure.where(kind: table): set figure(numbering: num => 
+    numbering("1", num)
+  )
+  
+  show figure.where(kind: image): set figure(numbering: num =>
+    numbering("1.1", chapter_counter.get().at(0), num))
+  
+  show figure.where(kind: raw): set figure(numbering: num =>
+    numbering("1.1", chapter_counter.get().at(0), num))
+
+  // a special case for svg images
+  show figure.where(kind: "image"): set figure(numbering: num =>
+    numbering("1.1", chapter_counter.get().at(0), num))
+
 
   show figure: set block(breakable: true) 
   
@@ -112,6 +139,7 @@ set page(
 #let chapter(n, name) = {
   // pagebreak()
   counter(heading).step()
+  chapter_counter.step()
   align(center)[#structural-element(
     "Глава " + str(n) + ". " + name
   )]
