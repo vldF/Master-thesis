@@ -7,7 +7,6 @@
 )
 
 #include "chapters/2. content.typ"
-#include "chapters/3. abbreviations.typ"
 #include "chapters/4. intro.typ"
 #include "chapters/5. overview.typ"
 #include "chapters/6. Task.typ"
