@@ -59,6 +59,9 @@
   show figure.where(kind: table): set figure(numbering: num => 
     numbering("1", num)
   )
+  show table.cell: c => {
+    return align(left + top, text(12pt, c, hyphenate: true))
+  }
   
   show figure.where(kind: image): set figure(numbering: num =>
     numbering("1.1", chapter_counter.get().at(0), num))
