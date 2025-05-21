@@ -22,6 +22,9 @@
     hyphenate: false,
   )
 
+  show heading.where(level: 1): text.with(size: 16pt, weight: "bold")
+  show heading.where(level: 2): text.with(size: 14pt, weight: "bold")
+
   set par(
     first-line-indent: (
       amount: 1.25cm,
@@ -111,7 +114,7 @@
     numbering: "1",
   )
 
-  counter(page).update(2)
+  counter(page).update(6)
 
   set heading(numbering: "1.1.1")
 
