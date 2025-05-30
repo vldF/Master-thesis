@@ -118,6 +118,8 @@
 
   set heading(numbering: "1.1.1")
 
+  show table.cell.where(y: 0): set text(weight: "bold")
+
   body
 }
 
