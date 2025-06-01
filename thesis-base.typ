@@ -23,7 +23,8 @@
   )
 
   show heading.where(level: 1): text.with(size: 16pt, weight: "bold")
-  show heading.where(level: 2): text.with(size: 14pt, weight: "bold")
+  show heading.where(level: 2): text.with(size: 16pt, weight: "bold")
+  show heading.where(level: 3): text.with(size: 14pt, weight: "bold")
 
   set par(
     first-line-indent: (
