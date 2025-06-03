@@ -89,21 +89,21 @@
 
   set enum(numbering: "1)")
 
-  set page(
-    margin: (
-      left: 0mm,
-      right: 0mm,
-      top: 0mm,
-      bottom: 0mm,
-    ),
-    numbering: "1",
-  )
+  // set page(
+  //   margin: (
+  //     left: 0mm,
+  //     right: 0mm,
+  //     top: 0mm,
+  //     bottom: 0mm,
+  //   ),
+  //   numbering: "1",
+  // )
 
-  muchpdf(read("./generated/front page.pdf", encoding: none), width: 100%)
+  // muchpdf(read("./generated/front page.pdf", encoding: none), width: 100%)
 
-  muchpdf(read("./generated/task.pdf", encoding: none), width: 100%)
+  // muchpdf(read("./generated/task.pdf", encoding: none), width: 100%)
 
-  muchpdf(read("./generated/annotation.pdf", encoding: none), width: 100%)
+  // muchpdf(read("./generated/annotation.pdf", encoding: none), width: 100%)
 
   set page(
     margin: (
@@ -115,7 +115,7 @@
     numbering: "1",
   )
 
-  counter(page).update(6)
+  counter(page).update(4)
 
   set heading(numbering: "1.1.1")
 
@@ -124,8 +124,11 @@
   body
 }
 
-#let structural-element(name, outlined: true) = {
-  pagebreak()
+#let structural-element(name, outlined: true, break_page: true) = {
+  if break_page {
+    pagebreak()
+  }
+  
   align(center)[
     #heading(
       numbering: none,
